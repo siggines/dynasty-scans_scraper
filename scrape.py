@@ -12,7 +12,7 @@ service = Service('./geckodriver')
 driver = webdriver.Firefox(service=service)
 wait = WebDriverWait(driver, 10)
 
-MAIN_URL = "https://dynasty-scans.com/tags/incest"
+MAIN_URL = "your url here"
 
 def safe_filename(name):
     # Remove or replace characters not good for filenames
