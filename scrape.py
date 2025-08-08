@@ -12,10 +12,9 @@ service = Service('./geckodriver')
 driver = webdriver.Firefox(service=service)
 wait = WebDriverWait(driver, 10)
 
-MAIN_URL = "your url here"
+MAIN_URL = "https://dynasty-scans.com/tags/incest"
 
 def safe_filename(name):
-    # Remove or replace characters not good for filenames
     return "".join(c for c in name if c.isalnum() or c in " _-").rstrip()
 
 def click_next_page(current_page_num):
@@ -36,11 +35,6 @@ def click_download_and_save(page_num, folder):
         img_url = download.get_attribute('href')
         print(f"Downloading page {page_num} from {img_url}")
 
-        # Open image URL in new tab
-        driver.execute_script("window.open(arguments[0], '_blank');", img_url)
-        driver.switch_to.window(driver.window_handles[-1])  # Switch to new tab
-
-        # Download image with requests
         response = requests.get(img_url)
         if response.status_code == 200:
             os.makedirs(folder, exist_ok=True)
@@ -51,57 +45,61 @@ def click_download_and_save(page_num, folder):
         else:
             print(f"Failed to download image from {img_url}")
 
-        driver.close()  # Close image tab
-        driver.switch_to.window(driver.window_handles[0])  # Switch back to chapter tab
         time.sleep(2)
-
     except TimeoutException:
         print("No page download button found on this page.")
 
 try:
-    driver.get(MAIN_URL)
-    time.sleep(3)  # let page load
+    page_num = 1
 
-    # Get all book links and their corresponding book names
-    book_links = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'a.name[href^="/chapters/"]')))
-    num_books = len(book_links)
-    print(f"Found {num_books} books")
-
-    for i in range(num_books):
-        # Refresh book links because DOM changes on navigation
-        book_links = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'a.name[href^="/chapters/"]')))
-        book = book_links[i]
-        book_href = book.get_attribute('href')
-
-        # Find book name from nearby series link <a href="/series/..." >Book Name</a>
-        # We look for the first series link on the same row or nearby
-        parent = book.find_element(By.XPATH, '..')  # parent element
-        try:
-            series_link = parent.find_element(By.CSS_SELECTOR, 'a[href^="/series/"]')
-            book_name = series_link.text.strip()
-        except:
-            # fallback if no series link found, use href part
-            book_name = book_href.split('/')[-1]
-
-        folder_name = safe_filename(book_name)
-        print(f"Processing book {i+1}/{num_books}: {book_name} ({book_href})")
-        book.click()
-        time.sleep(3)  # wait for chapter page to load
-
-        # Download page 1 image
-        click_download_and_save(1, folder_name)
-
-        current_page = 1
-        while True:
-            next_page = click_next_page(current_page)
-            if not next_page:
-                break
-            current_page = next_page
-            click_download_and_save(current_page, folder_name)
-
-        print("Pages exhausted. Returning to main book list.")
-        driver.get(MAIN_URL)  # reload main book list page instead of driver.back()
+    while True:
+        driver.get(f"{MAIN_URL}?page={page_num}&view=chapters")
         time.sleep(3)
+
+        try:
+            book_links = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'a.name[href^="/chapters/"]')))
+        except TimeoutException:
+            print(f"No books found on page {page_num}, stopping.")
+            break
+
+        if not book_links:
+            print(f"No books found on page {page_num}, stopping.")
+            break
+
+        print(f"Page {page_num}: Found {len(book_links)} books")
+
+        for i in range(len(book_links)):
+            book_links = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'a.name[href^="/chapters/"]')))
+            book = book_links[i]
+            book_href = book.get_attribute('href')
+
+            parent = book.find_element(By.XPATH, '..')
+            try:
+                series_link = parent.find_element(By.CSS_SELECTOR, 'a[href^="/series/"]')
+                book_name = series_link.text.strip()
+            except:
+                book_name = book_href.split('/')[-1]
+
+            folder_name = safe_filename(book_name)
+            print(f"Processing book {i+1}/{len(book_links)} on page {page_num}: {book_name} ({book_href})")
+            book.click()
+            time.sleep(3)
+
+            click_download_and_save(1, folder_name)
+
+            current_page = 1
+            while True:
+                next_page = click_next_page(current_page)
+                if not next_page:
+                    break
+                current_page = next_page
+                click_download_and_save(current_page, folder_name)
+
+            print("Pages exhausted. Returning to book list.")
+            driver.get(f"{MAIN_URL}?page={page_num}&view=chapters")
+            time.sleep(3)
+
+        page_num += 1
 
 except Exception as e:
     print(f"Error: {e}")
