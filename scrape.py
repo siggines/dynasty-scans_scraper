@@ -12,7 +12,9 @@ service = Service('./geckodriver')
 driver = webdriver.Firefox(service=service)
 wait = WebDriverWait(driver, 10)
 
-MAIN_URL = "https://dynasty-scans.com/tags/incest"
+tag = input("Enter the tag you want: ").strip()
+url = f"https://dynasty-scans.com/tags/{tag}"
+MAIN_URL = url
 
 def safe_filename(name):
     return "".join(c for c in name if c.isalnum() or c in " _-").rstrip()
